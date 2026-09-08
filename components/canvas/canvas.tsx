@@ -48,8 +48,9 @@ export function Canvas() {
   const edges = useMemo(
     () =>
       edgeEntries.map(([id, edge]) => {
-        const { source, target } = edge as unknown as CanvasEdgeData;
-        return { id, source, target, ...defaultEdgeOptions };
+        const { source, target, sourceHandle, targetHandle } =
+          edge as unknown as CanvasEdgeData;
+        return { id, source, target, sourceHandle, targetHandle, ...defaultEdgeOptions };
       }),
     [edgeEntries]
   );
@@ -89,7 +90,12 @@ export function Canvas() {
   const onConnect: OnConnect = useMutation(({ storage }, connection) => {
     if (!connection.source || !connection.target) return;
     const id = crypto.randomUUID();
-    storage.get("edges").set(id, { source: connection.source, target: connection.target });
+    storage.get("edges").set(id, {
+      source: connection.source,
+      target: connection.target,
+      sourceHandle: connection.sourceHandle ?? undefined,
+      targetHandle: connection.targetHandle ?? undefined,
+    });
   }, []);
 
   const addNode = useMutation(({ storage }, shape: NodeShape, color: NodeColor) => {
@@ -126,7 +132,7 @@ export function Canvas() {
   return (
     <div
       ref={containerRef}
-      className="relative flex-1"
+      className="relative min-h-0 flex-1"
       onPointerMove={handlePointerMove}
       onPointerLeave={handlePointerLeave}
     >

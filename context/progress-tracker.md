@@ -14,6 +14,29 @@ Update this file whenever the current phase, active feature, or implementation s
   complete this itself), then decide the next unit: canvas snapshot persistence to Vercel
   Blob, starter system design templates, or AI architecture generation.
 
+## Recent Fixes (found while generating a demo screenshot)
+
+Building a throwaway static demo page (populated with sample data, no auth/Liveblocks) to
+produce a portfolio screenshot surfaced and fixed three real bugs in the shipped canvas —
+worth calling out since they'd have hit real users on `/projects/[id]`, not just the demo:
+
+1. `app/layout.tsx`: `body` used `min-h-full` instead of `h-full`. `min-height` doesn't
+   establish a definite height for percentage/flex-based descendant sizing, so React Flow's
+   container could fail to size itself ("parent container needs a width and a height").
+2. `components/canvas/shape-node.tsx` + `liveblocks.config.ts` + `components/canvas/canvas.tsx`:
+   every node only exposed `type="source"` handles, so edges had no valid `target`-type
+   handle to bind to — new connections would fail to render correctly once reloaded from
+   storage. Fixed by giving each of the 4 sides both a source and target handle
+   (`${side}-source` / `${side}-target`) and persisting `sourceHandle`/`targetHandle` on
+   the edge itself instead of leaving them implicit.
+3. `components/canvas/shape-node.tsx`: the handle list's `.map()` returned a shorthand `<>`
+   fragment per item — shorthand fragments can't take a `key` prop, so React warned on
+   every render. Fixed with an explicit `<Fragment key={side}>`.
+
+The demo page itself (`app/demo-screenshot/page.tsx`) was deleted after use — it was never
+meant to ship, just a static sandbox to render the same components with fixed sample data
+so a screenshot didn't require a live signed-in session.
+
 ## Completed
 
 - Design system (`context/feature-specs/01-design-system.md`).

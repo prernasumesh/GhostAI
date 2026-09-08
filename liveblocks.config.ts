@@ -4,6 +4,8 @@ import type { CanvasNodeData } from "@/types/canvas";
 export interface CanvasEdgeData {
   source: string;
   target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
   [key: string]: Json | undefined;
 }
 

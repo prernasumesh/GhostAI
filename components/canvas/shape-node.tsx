@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { cn } from "cn";
 import type { CanvasNodeData } from "@/types/canvas";
@@ -9,23 +10,32 @@ export type ShapeNode = Node<CanvasNodeData, "shape">;
 const HANDLE_CLASS =
   "!h-2 !w-2 !border-none !bg-white opacity-0 transition-opacity group-hover:opacity-100";
 
+const SIDES = [
+  { side: "top", position: Position.Top },
+  { side: "right", position: Position.Right },
+  { side: "bottom", position: Position.Bottom },
+  { side: "left", position: Position.Left },
+] as const;
+
 function Handles() {
   return (
     <>
-      <Handle type="source" position={Position.Top} id="top" className={HANDLE_CLASS} />
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="right"
-        className={HANDLE_CLASS}
-      />
-      <Handle
-        type="source"
-        position={Position.Bottom}
-        id="bottom"
-        className={HANDLE_CLASS}
-      />
-      <Handle type="source" position={Position.Left} id="left" className={HANDLE_CLASS} />
+      {SIDES.map(({ side, position }) => (
+        <Fragment key={side}>
+          <Handle
+            type="source"
+            position={position}
+            id={`${side}-source`}
+            className={HANDLE_CLASS}
+          />
+          <Handle
+            type="target"
+            position={position}
+            id={`${side}-target`}
+            className={HANDLE_CLASS}
+          />
+        </Fragment>
+      ))}
     </>
   );
 }
