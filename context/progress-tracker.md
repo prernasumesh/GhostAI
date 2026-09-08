@@ -121,7 +121,7 @@ so a screenshot didn't require a live signed-in session.
   worth remembering as a standing limitation for any future UI unit, not re-discovering it
   each time.
 - Vercel Blob, Trigger.dev, and an LLM API key are still not configured.
-- Local dev server: `.claude/launch.json` → `ghost-ai-dev` (`npm run dev`, `autoPort: true`).
+- Local dev server runs on `npm run dev`, port 3000 (falls back to another port if taken).
 - Keep checking `node_modules/**` type declarations / doc folders directly before writing
   code against Next.js, Clerk, Prisma, Liveblocks, or React Flow — this project has hit a
   real breaking change in every major dependency so far (Next.js proxy rename, Clerk Core
