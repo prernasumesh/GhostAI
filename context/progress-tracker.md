@@ -4,41 +4,37 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- Foundation complete: design system, Clerk auth, and Project CRUD (owner-only; collaborator
-  invite flow not built). Collaborative canvas, AI generation, and spec generation not started.
+- Foundation complete: design system, Clerk auth, Project CRUD, and the real-time
+  collaborative canvas (Liveblocks + React Flow) are built. Canvas snapshot persistence,
+  starter templates, AI generation, and spec generation not started.
 
 ## Current Goal
 
-- Decide and scope the next unit: either the collaborator-invite flow (needs a "look up
-  Clerk user by email" decision — see Open Questions) or start the Collaborative Canvas
-  unit (Liveblocks + React Flow), which needs a Liveblocks API key.
+- Get the canvas verified live by the user (see Session Notes — the assistant could not
+  complete this itself), then decide the next unit: canvas snapshot persistence to Vercel
+  Blob, starter system design templates, or AI architecture generation.
 
 ## Completed
 
 - Design system (`context/feature-specs/01-design-system.md`).
 - Auth and route protection (`context/feature-specs/02-auth.md`).
-- Projects: creation, ownership, list, workspace navigation (`context/feature-specs/03-projects.md`):
-  - Postgres provisioned on Neon; `DATABASE_URL` in `.env.local` (gitignored).
-  - Prisma 7 set up: `prisma/schema.prisma` (`Project`, `ProjectCollaborator` models),
-    migration applied (`prisma/migrations/20260908014335_init`), client generated to
-    `prisma/generated/client` (gitignored build output).
-  - `lib/prisma.ts` (singleton client with the `@prisma/adapter-pg` driver adapter —
-    required by Prisma 7's new client, see Architecture Decisions) and `lib/projects.ts`
-    (ownership/collaborator query helpers).
-  - `app/api/projects/route.ts` (GET list, POST create — validates input, requires auth).
-  - `app/dashboard/page.tsx` lists the user's projects with a "New project" dialog
-    (`components/new-project-dialog.tsx`).
-  - `app/projects/[projectId]/page.tsx`: protected placeholder workspace, 404s for
-    non-owners/non-collaborators via `getProjectForUser`.
-  - `proxy.ts` matcher extended to protect `/projects(.*)` and `/api/projects(.*)`.
-  - Verified: `tsc --noEmit`, `npm run lint`, `npm run build` all clean. Route-protection
-    redirect re-verified after the Clerk Core 3 fixes. Database read/write verified against
-    the live Neon instance directly via `pg` (a throwaway insert/read/delete probe script,
-    deleted after running) — full browser sign-up flow could not be verified end-to-end
-    because Clerk's bot-check (Cloudflare "Verify you are human") gates account creation,
-    and completing CAPTCHAs is outside what this assistant will do even in dev/test mode.
-    **The user should do one real sign-up + "New project" click themselves to confirm the
-    UI path.**
+- Projects: creation, ownership, list, workspace navigation (`context/feature-specs/03-projects.md`).
+- Collaborative Canvas (`context/feature-specs/04-canvas.md`):
+  - Liveblocks (`@liveblocks/client`/`react`/`node`) + `@xyflow/react` (React Flow) installed.
+  - `types/canvas.ts`: the 8 `NODE_COLORS` pairs, 6 `NODE_SHAPES`, `CanvasNodeData` — from `ui-context.md`.
+  - `liveblocks.config.ts`: global `Storage`/`Presence`/`UserMeta` augmentation. Nodes and
+    edges are each a `LiveMap` keyed by id (not one big array) for per-item concurrent-edit safety.
+  - `app/api/liveblocks-auth/route.ts`: verifies project membership (`getProjectForUser`)
+    before issuing a room token; room ID = project ID.
+  - `components/canvas/`: `canvas-room.tsx` (provider wrapper), `canvas.tsx` (the
+    ReactFlow canvas — storage-backed nodes/edges, drag/connect/delete synced via
+    `useMutation`, live cursors via `useOthers`), `shape-node.tsx` (all 6 shapes, hover-reveal
+    handles on all sides), `canvas-toolbar.tsx` (floating shape/color picker + add-node button).
+  - `app/projects/[projectId]/page.tsx` now renders the real canvas (still behind the same
+    ownership check as before).
+  - Verified: `tsc --noEmit`, `npm run lint`, `npm run build` all clean; route protection
+    re-confirmed for `/projects/[id]` after the change. **Not verified live in-browser** —
+    see Session Notes.
 
 ## In Progress
 
@@ -46,75 +42,65 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Next Up
 
-- Collaborator invite flow — open question below, needs a product decision first.
-- Collaborative Canvas: Liveblocks + React Flow, live cursors/presence, canvas snapshot
-  persistence to Vercel Blob. Requires a Liveblocks API key and a Vercel Blob token.
-- AI Architecture Generation and Spec Generation: both need Trigger.dev (background jobs)
-  and an LLM API key (provider unspecified — check what the source tutorial uses).
+- Canvas snapshot persistence to Vercel Blob (`canvas/{projectId}.json`, per the storage
+  model) — deliberately deferred as its own unit, not bundled with the real-time canvas
+  work. Needs a Vercel Blob token.
+- Starter System Designs: template library + import into an active room.
+- Collaborator invite flow — still blocked on the open question below.
+- AI Architecture Generation / Spec Generation — need Trigger.dev + an LLM API key.
 
 ## Open Questions
 
-- How should adding a collaborator work? Options: invite by email (requires looking up a
-  Clerk user by email via the Clerk Backend API, and handling the not-yet-a-user case),
-  invite by Clerk user ID (simple but not user-friendly), or a shareable invite link
-  (needs its own token/expiry model). Not specified in `project-overview.md` or
-  `architecture-context.md` — needs a decision before building it.
+- How should adding a collaborator work? (email lookup vs. Clerk user ID vs. invite link —
+  not specified anywhere in the context files.) Still unresolved from the previous unit.
 
 ## Architecture Decisions
 
-- shadcn's current CLI (v4) generates `base-nova`-style components using `@base-ui/react`
-  (not Radix) and the `cn` npm package (not a hand-rolled `clsx`/`tailwind-merge` util).
-- Kept `@import "shadcn/tailwind.css"` and `@import "tw-animate-css"` in `globals.css` —
-  required by the installed component style for state-based variants and animations.
-- **Next.js 16 renamed `middleware.ts` to `proxy.ts`** (same `clerkMiddleware` export,
-  relocated + default-exported from the new filename) — `next build` throws a deprecation
-  warning on the old convention.
-- **Clerk is on "Core 3"** (`@clerk/nextjs@7.x`). `<SignedIn>`/`<SignedOut>`/`<Protect>`
-  were removed and throw at runtime — use `<Show when="signed-in" | "signed-out" | {...}>`.
-  `appearance.baseTheme` → `appearance.theme`. `Variables.colorText` → `colorForeground`
-  (no `colorInputBackground`). Check `node_modules/@clerk/nextjs/dist/types/index.d.ts`
-  and the removed-component source before writing more Clerk code — it embeds the exact
-  migration steps.
-- Clerk's `auth.protect()` default-redirects to Clerk's hosted Account Portal unless
-  `NEXT_PUBLIC_CLERK_SIGN_IN_URL`/`SIGN_UP_URL` env vars point at our own routes — set in
-  `.env.local`.
-- **Prisma is on v7**, a major architecture change from what older Prisma docs/training
-  data describe: the default generator is now `prisma-client` (not `prisma-client-js`),
-  it requires an explicit `output` path (generates real source files into the repo, not
-  into `node_modules`), the config lives in a `prisma7.config.ts` file (not env-var-only
-  datasource URLs), and — most importantly — **the generated client requires an explicit
-  driver adapter** (`@prisma/adapter-pg`'s `PrismaPg`, passed as `new PrismaClient({ adapter })`)
-  rather than bundling its own native query-engine binary. The generated client's own
-  docstring in `prisma/generated/client/client.ts` shows the correct usage — trust that
-  over prior Prisma knowledge. The generated client's internal files use extensionless
-  imports that resolve fine under Next.js's bundler but NOT under raw `node script.mjs`
-  execution — don't try to smoke-test the generated client by running it directly with
-  Node; go through the app's build/dev server, or test the raw DB connection with `pg`
-  directly instead.
-- `prisma7.config.ts` loads env vars from `.env.local` explicitly (via `dotenv`'s `config({ path: ".env.local" })`)
-  rather than the default `.env`, to keep a single source of truth for local secrets
-  alongside the Clerk keys.
-- Rejected an approach: the user was given (and did not fully run) a set of instructions
-  to `npm i -g neon@latest`, `neon login`, `neon mcp -y` (register an MCP server),
-  `neon link`, and `neon deploy` to provision/manage the database via Neon's CLI. Verified
-  the `neon` npm package is legitimate (published by the real Neon org, not a
-  name-collision/typosquat) but still steered away from it in favor of just pasting the
-  connection string directly — avoids a global install, an account-linking login flow, an
-  unreviewed MCP server registration, and a `deploy` command run against a real database,
-  none of which were necessary just to get a connection string.
+- shadcn's CLI (v4) generates `base-nova`-style components on `@base-ui/react` + the `cn`
+  package, not Radix/clsx/tailwind-merge.
+- **Next.js 16 renamed `middleware.ts` to `proxy.ts`.**
+- **Clerk is on "Core 3"** (`@clerk/nextjs@7.x`) — `<Show when="signed-in"|"signed-out">`
+  replaces `<SignedIn>`/`<SignedOut>`/`<Protect>`; `appearance.theme` not `.baseTheme`;
+  `colorForeground` not `colorText`.
+- **Prisma is on v7** — `prisma-client` generator with an explicit `output` path, driver
+  adapters required (`@prisma/adapter-pg`), config in `prisma7.config.ts`.
+- **Liveblocks is on v3** (`@liveblocks/*@3.24.1`) and **React Flow ships as `@xyflow/react`
+  v12** (the `reactflow` package is the old pre-rename name — don't install that). Verified
+  the hook/API surface (`LiveblocksProvider`, `RoomProvider`, `useStorage`, `useMutation`,
+  `useOthers`, the global `Liveblocks` interface augmentation, `Handle`/`Position`/
+  `MarkerType`) against the installed type declarations rather than assuming — it matches
+  prior Liveblocks v2 knowledge closely, with one real gotcha (next bullet).
+- **`useStorage`'s selector receives a read-only `ToJson<Storage>` snapshot, not the live
+  CRDT objects** — a `LiveMap` shows up as a plain object in that snapshot, so iterate it
+  with `Object.entries(root.nodes)`, not `root.nodes.entries()`. The live `LiveMap`/
+  `LiveObject` instances (with real `.get()`/`.set()`/`.delete()`/`.entries()`) are only
+  available inside `useMutation`'s `storage` argument. Also: because our `CanvasNodeStorage`/
+  `CanvasEdgeData` types carry an index signature (required to satisfy Liveblocks' `Json`
+  constraint), TypeScript widens every field to the index signature type when it runs them
+  through `ToJson<T>` — cast with `as unknown as CanvasNodeStorage` (etc.) at the point
+  nodes/edges are read out of `useStorage`, rather than fighting the inference.
+- Rejected an approach: was given (and did not fully run) `npm i -g neon@latest` / `neon
+  login` / `neon mcp -y` / `neon link` / `neon deploy` to provision the database via
+  Neon's CLI+MCP. Verified the package is legitimately Neon's (not a typosquat) but used a
+  pasted connection string instead — no global install, account-linking login, unreviewed
+  MCP registration, or `deploy` command needed just to get a connection string.
 
 ## Session Notes
 
-- `.env.local` holds: Clerk publishable + secret key, Clerk sign-in/up URL overrides, and
-  `DATABASE_URL` (Neon, `neondb` database, `us-east-2`). Not committed (gitignored,
-  reconfirmed via `git check-ignore` after every addition).
-- Liveblocks, Trigger.dev, Vercel Blob, and an LLM API key are still not configured —
-  needed before the Collaborative Canvas / AI Generation / Spec Generation units.
-- Local dev server is registered in `.claude/launch.json` as `ghost-ai-dev`
-  (`npm run dev`; `autoPort: true` since port 3000 is sometimes held by another session's
-  dev server on this machine — `next dev` doesn't hardcode a port so this works cleanly).
-- Before writing any new Next.js, Clerk, or Prisma code, check `node_modules/next/dist/docs/`
-  and the relevant `node_modules/@clerk/*` or `node_modules/prisma/**` type/source files
-  for breaking changes rather than assuming prior training-data knowledge — this
-  AGENTS.md-mandated check already caught three real breaking changes across this
-  project (Next.js proxy rename, Clerk Core 3, Prisma 7 driver adapters).
+- `.env.local` now also holds `LIVEBLOCKS_SECRET_KEY` (dev key, `sk_dev_...`). Still not
+  committed (gitignored, reconfirmed).
+- **The assistant cannot complete the browser sign-up flow itself** — Clerk's bot-check
+  (Cloudflare "Verify you are human") gates it, and completing CAPTCHAs is out of bounds
+  even for dev/test verification. This means the canvas (and the project dashboard's
+  create flow before it) is verified by build/typecheck/lint plus route-protection checks,
+  but the actual interactive behavior — dragging nodes, multi-user cursors, the create-
+  project dialog — needs the user to click through it once. Flagged both times so far;
+  worth remembering as a standing limitation for any future UI unit, not re-discovering it
+  each time.
+- Vercel Blob, Trigger.dev, and an LLM API key are still not configured.
+- Local dev server: `.claude/launch.json` → `ghost-ai-dev` (`npm run dev`, `autoPort: true`).
+- Keep checking `node_modules/**` type declarations / doc folders directly before writing
+  code against Next.js, Clerk, Prisma, Liveblocks, or React Flow — this project has hit a
+  real breaking change in every major dependency so far (Next.js proxy rename, Clerk Core
+  3, Prisma 7 driver adapters, and the `useStorage` ToJson snapshot behavior above), so
+  prior training-data knowledge alone has been wrong at least once per dependency.
